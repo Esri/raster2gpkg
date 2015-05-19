@@ -1,4 +1,33 @@
 raster2gpkg
 ===========
 
-Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage
+Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. Currentky only for ArcGIS Dsktop 10.3, 10.3.1.
+
+1) Copy the contents of the python directory under the python site-packages directory. Usually C:\Python27\ArcGIS10.3\Lib\site-packages.
+
+The python directory contains:
+osgeo
+gdal.pt
+gdalconst.py
+gdalnumeric.py
+osr.py
+
+2) Copy gdal18.dll to Desktop10.3\bin
+
+3) In ArcCatalog navigate to MyToolboxes, right click, and create a new toolbox and name it "GeoPackage". Copy the Raster2gpkg tool from the GeoPackageToolbox.tbx\GeoPackage to the GeoPackage toolbox under My Toolboxes.
+
+4) Load the image into a geopackage (.gpkg)
+ - Navigate to the target geopackage.
+ - Navigate to the image to be loaded.
+ - Select the image type. (jpeg, png).
+ - Select Ok.
+
+5) In ArcMap bring up the Toolbox.
+ - Select the Make Raster Layer tool from the Data Management\Layers and Table Views toolbox.
+ - Navigate to the geopackage containing the loaded image and select the image (main.q0513nejpg_tiles), Anything you load will have a "_tiles" on the end of the name.
+ - Accept the default raster layer name.
+ - Click OK. The python script, "raster2gpkg.py is located in \\jotunheimen\C\gdal2gpkgWorkup. It's also been loaded into the GP tool and is not needed for install.
+ 
+6) Data
+example.gpkg - Sample empty geopackage. 
+q0513ne.jpg - Sample image for loading.
