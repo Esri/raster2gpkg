@@ -2,6 +2,7 @@
 
 Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. Currentky only for ArcGIS Dsktop 10.3, 10.3.1.
 
+## Instructions
 1) Copy the contents of the python directory under the python site-packages directory. Usually C:\Python27\ArcGIS10.3\Lib\site-packages.
 
 The python directory contains:
