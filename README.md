@@ -1,6 +1,8 @@
 #raster2gpkg
 
-Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. Currentky only for ArcGIS Dsktop 10.3, 10.3.1.
+This is a Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. 
+
+## Features
 
 ## Instructions
 1) Copy the contents of the python directory under the python site-packages directory. Usually C:\Python27\ArcGIS10.3\Lib\site-packages.
@@ -31,6 +33,22 @@ osr.py
 6) Data
 example.gpkg - Sample empty geopackage. 
 q0513ne.jpg - Sample image for loading.
+
+## Requirements
+
+* ArcGIS Desktop 10.3 with http://support.esri.com/en/downloads/patches-servicepacks/view/productid/66/metaid/2200
+* ArcGIS Desktop 10.3.1
+
+## Resources
+* [ArcGIS Blog](http://blogs.esri.com/esri/arcgis/)
+
+## Issues
+
+Find a bug or want to request a new feature?  Please let us know by submitting an issue.
+
+## Contributing
+
+Esri welcomes contributions from anyone and everyone. Please see our [guidelines for contributing](https://github.com/esri/contributing).
 
 ## Licensing
 Copyright 2015 Esri
