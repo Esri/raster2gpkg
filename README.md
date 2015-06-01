@@ -2,6 +2,8 @@
 
 This is a Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. 
 
+![App](https://raw.github.com/Esri/quickstart-map-js/master/raster2gpkg.png)
+
 ## Features
 
 ## Instructions
