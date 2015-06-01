@@ -2,8 +2,6 @@
 
 This is a Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. 
 
-![App](https://raw.github.com/Esri/quickstart-map-js/master/raster2gpkg.png)
-
 ## Features
 
 ## Instructions
@@ -67,7 +65,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-A copy of the license is available in the repository's [license.txt]
+A copy of the license is available in the repository's [License.txt](License.txt)
 
 [](Esri Tags: ArcGIS Raster GeoPackage GPKG)
 [](Esri Language: Python)​
