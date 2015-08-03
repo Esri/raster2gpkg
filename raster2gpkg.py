@@ -1,20 +1,6 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 """Simple script to add a dataset into an existing or new GeoPackage.
 Based on other python utilities but made PEP compliant.
-
-   Copyright 2015 Esri
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.​
 """
 # $Id$
 
@@ -164,9 +150,16 @@ class GeoPackage:
                 (table_name, zoom_level, matrix_width, matrix_height, self.tile_width, self.tile_height, pixel_x_size,
                  pixel_y_size)
             )
+            self.connection.execute(
+                """
+                INSERT INTO gpkg_tile_matrix_set(table_name, srs_id, min_x, min_y, max_x, max_y)
+                VALUES(?, ?, ?, ?, ?, ?);
+                """,
+                (table_name, srs_id, min_x, min_y, max_x, max_y)
+            )			
             sql_string = """
                 CREATE TABLE """ + table_name + """ (
-                  identifier INTEGER PRIMARY KEY AUTOINCREMENT,
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                   zoom_level INTEGER NOT NULL,
                   tile_column INTEGER NOT NULL,
                   tile_row INTEGER NOT NULL,
@@ -457,7 +450,7 @@ class GeoPackage:
                                  CONSTRAINT pk_ttm PRIMARY KEY (table_name, zoom_level),
                                  CONSTRAINT fk_tmm_table_name FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name) );
                   """
-            )
+            )			
             self.connection.execute(
                 """
                     CREATE TRIGGER IF NOT EXISTS 'gpkg_tile_matrix_zoom_level_insert'
@@ -558,6 +551,19 @@ class GeoPackage:
                     END
                     """
             )
+            self.connection.execute(
+                """
+                    CREATE TABLE IF NOT EXISTS gpkg_tile_matrix_set (
+                                 table_name TEXT NOT NULL PRIMARY KEY,
+                                 srs_id INTEGER NOT NULL,
+                                 min_x DOUBLE NOT NULL,
+                                 min_y DOUBLE NOT NULL,
+                                 max_x DOUBLE NOT NULL,
+                                 max_y DOUBLE NOT NULL,
+                                 CONSTRAINT fk_gtms_table_name FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+                                 CONSTRAINT fk_gtms_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id) );
+                  """
+            )
             self.connection.commit()
         except sqlite3.Error as e:
             print("ERROR: SQLite error while creating core tables and triggers: ", e.args[0])
@@ -614,3 +620,6 @@ if __name__ == '__main__':
         print('ERROR: Python bindings of GDAL 1.8.0 or later required')
         sys.exit(1)
     sys.exit(main(sys.argv))
+
+
+
