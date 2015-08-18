@@ -16,21 +16,23 @@ osr.py
 
 2) Copy gdal18.dll to Desktop10.3\bin
 
-3) In ArcCatalog navigate to MyToolboxes, right click, and create a new toolbox and name it "GeoPackage". Copy the Raster2gpkg tool from the GeoPackageToolbox.tbx\GeoPackage to the GeoPackage toolbox under My Toolboxes.
+3) In ArcCatalog navigate to MyToolboxes, and drag the "GeoPackage" from the GeoPackageToolbox.tbx\GeoPackage over.
 
-4) Load the image into a geopackage (.gpkg)
+4) In ArcCatalog create a geopackage using the CreateSQLiteDatabase GP tool. Make sure to select "GEOPACKAGE" as the spatial type.
+
+5) Load the image into a geopackage (.gpkg)
  - Navigate to the target geopackage.
  - Navigate to the image to be loaded.
  - Select the image type. (jpeg, png).
  - Select Ok.
 
-5) In ArcMap bring up the Toolbox.
+6) In ArcMap bring up the Toolbox.
  - Select the Make Raster Layer tool from the Data Management\Layers and Table Views toolbox.
  - Navigate to the geopackage containing the loaded image and select the image (main.q0513nejpg_tiles), Anything you load will have a "_tiles" on the end of the name.
  - Accept the default raster layer name.
  - Click OK. The python script, "raster2gpkg.py is located in \\jotunheimen\C\gdal2gpkgWorkup. It's also been loaded into the GP tool and is not needed for install.
  
-6) Data
+7) Data
 example.gpkg - Sample empty geopackage. 
 q0513ne.jpg - Sample image for loading.
 

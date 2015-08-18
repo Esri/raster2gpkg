@@ -12,6 +12,7 @@ import math
 import sqlite3
 import numpy
 import tempfile
+import collections
 from osgeo import gdal
 from osgeo.gdalconst import *
 
@@ -28,6 +29,8 @@ class GeoPackage:
         self.filename = None
         self.tile_width = 256
         self.tile_height = 256
+        self.full_width = 0
+        self.full_height = 0
         self.format = fmt
         self.format_options = list()
         self.sr_organization = "NONE"
@@ -42,10 +45,62 @@ class GeoPackage:
         if self.driver is None or self.mem_driver is None:
             raise RuntimeError("Can't find appropriate GDAL driver for MEM and/or format ", self.format)
         self.jpeg_options = []
+        self.ResolutionLayerInfo = collections.namedtuple('ResolutionLayerInfo', ['factor_x', 'factor_y',
+                                                                                  'pixel_x_size', 'pixel_y_size',
+                                                                                  'width', 'height',
+                                                                                  'matrix_width', 'matrix_height',
+                                                                                  'expected_pixel_x_size',
+                                                                                  'expected_pixel_y_size'])
+        self.overviews = []
 
     def __del__(self):
         if self.connection is not None:
             self.connection.close()
+
+    def compute_levels(self, pixel_x_size, pixel_y_size, width, height, map_width, map_height):
+        level = 1
+        self.full_width = width
+        self.full_height = height
+        width = int(math.pow(2, math.floor(math.log(width)/math.log(2))))
+        height = int(math.pow(2, math.floor(math.log(height)/math.log(2))))
+        matrix_width = int(math.ceil(float(width) / float(self.tile_width)))
+        matrix_height = int(math.ceil(float(height) / float(self.tile_height)))
+        layer_pixel_x_size = (map_width / matrix_width) / self.tile_width
+        layer_pixel_y_size = (map_height / matrix_height) / self.tile_height
+        layer_width = int(math.ceil(map_width / layer_pixel_x_size))
+        layer_height = int(math.ceil(map_height / layer_pixel_y_size))
+        factor_x = float(self.full_width) / float(layer_width)
+        factor_y = float(self.full_height) / float(layer_height)
+        expected_pixel_x_size = (map_width / matrix_width) / self.tile_width
+        expected_pixel_y_size = (map_height / matrix_height) / self.tile_height
+        self.overviews.append(self.ResolutionLayerInfo(factor_x, factor_y, layer_pixel_x_size, layer_pixel_y_size,
+                                                       layer_width, layer_height, matrix_width, matrix_height,
+                                                       expected_pixel_x_size, expected_pixel_y_size))
+        while 1:
+            factor = pow(2, level)
+            overview_pixel_x_size = layer_pixel_x_size * float(factor)
+            overview_pixel_y_size = layer_pixel_y_size * float(factor)
+            overview_width = int(math.ceil(map_width / overview_pixel_x_size))
+            overview_height = int(math.ceil(map_height / overview_pixel_y_size))
+            matrix_width = int(math.floor(float(overview_width) / float(self.tile_width)))
+            matrix_height = int(math.floor(float(overview_height) / float(self.tile_height)))
+            expected_pixel_x_size = (map_width / matrix_width) / self.tile_width
+            expected_pixel_y_size = (map_height / matrix_height) / self.tile_height
+            factor_x = float(self.full_width) / float(overview_width)
+            factor_y = float(self.full_height) / float(overview_height)
+            if overview_width < 1024 or overview_height < 1024:
+                break
+            self.overviews.append(self.ResolutionLayerInfo(factor_x, factor_y, overview_pixel_x_size, overview_pixel_y_size,
+                                                           overview_width, overview_height,
+                                                           matrix_width, matrix_height,
+                                                           expected_pixel_x_size, expected_pixel_y_size))
+            level += 1
+        # for overview in self.overviews:
+        #     print(overview.factor_x, overview.factor_y, overview.pixel_x_size, overview.pixel_y_size, overview.width, overview.height,
+        #           overview.matrix_width, overview.matrix_height, overview.expected_pixel_x_size, overview.expected_pixel_y_size)
+        #     print((map_width/overview.matrix_width)/self.tile_width,(map_height/overview.matrix_height)/self.tile_height)
+        return True
+
 
     def write_srs(self, dataset, srs_name):
         """
@@ -123,6 +178,8 @@ class GeoPackage:
             max_y = geotransform[3] + geotransform[4] * dataset.RasterXSize + geotransform[5] * dataset.RasterYSize
             pixel_x_size = geotransform[1]
             pixel_y_size = abs(geotransform[5])
+            map_width = math.fabs(max_x - min_x)
+            map_height = math.fabs(max_y - min_y)
         else:
             min_x = 0.00
             min_y = 0.00
@@ -130,9 +187,9 @@ class GeoPackage:
             max_y = dataset.RasterYSize
             pixel_x_size = 1.00
             pixel_y_size = 1.00
-        matrix_width = int(math.ceil(float(dataset.RasterXSize) / float(self.tile_width)))
-        matrix_height = int(math.ceil(float(dataset.RasterYSize) / float(self.tile_height)))
-        zoom_level = 0
+        self.compute_levels(pixel_x_size, pixel_y_size, dataset.RasterXSize, dataset.RasterYSize,
+                               map_width, map_height)
+        self.overviews.reverse()
         try:
             self.connection.execute(
                 """
@@ -143,20 +200,12 @@ class GeoPackage:
             )
             self.connection.execute(
                 """
-                INSERT INTO gpkg_tile_matrix(table_name, zoom_level, matrix_width, matrix_height, tile_width,
-                                             tile_height, pixel_x_size, pixel_y_size)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (table_name, zoom_level, matrix_width, matrix_height, self.tile_width, self.tile_height, pixel_x_size,
-                 pixel_y_size)
-            )
-            self.connection.execute(
-                """
                 INSERT INTO gpkg_tile_matrix_set(table_name, srs_id, min_x, min_y, max_x, max_y)
                 VALUES(?, ?, ?, ?, ?, ?);
                 """,
-                (table_name, srs_id, min_x, min_y, max_x, max_y)
-            )			
+                (table_name, srs_id, min_x, max_y, max_x, min_y)
+
+            )
             sql_string = """
                 CREATE TABLE """ + table_name + """ (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,23 +279,11 @@ class GeoPackage:
             """
             self.connection.execute(sql_string)
         except sqlite3.Error as e:
-            print("Error inserting entries into gpkg_contents and/or gpkg_tile_matrix: ", e.args[0])
-            return False
-        if not self.write_level(dataset, table_name, zoom_level, matrix_width, matrix_height):
-            print("Error writing full resolution tiles.")
+            print("Error inserting entries into gpkg_contents and/or other tables: ", e.args[0])
             return False
         self.connection.commit()
-        band = dataset.GetRasterBand(1)
-        levels = band.GetOverviewCount()
-        for overview_level in range(levels):
-            overview_band = band.GetOverview(overview_level)
-            if overview_band.XSize < self.tile_width or overview_band.YSize < self.tile_height:
-                break
-            level_pixel_x_size = pixel_x_size * (float(dataset.RasterXSize) / float(overview_band.XSize))
-            level_pixel_y_size = pixel_y_size * (float(dataset.RasterYSize) / float(overview_band.YSize))
-            matrix_width = int(math.ceil(float(overview_band.XSize) / float(self.tile_width)))
-            matrix_height = int(math.ceil(float(overview_band.YSize) / float(self.tile_height)))
-            zoom_level += 1
+        zoom_level = 0
+        for overview in self.overviews:
             try:
                 self.connection.execute(
                     """
@@ -254,24 +291,26 @@ class GeoPackage:
                                                  tile_height, pixel_x_size, pixel_y_size)
                     VALUES(?, ?, ?, ?, ?, ?, ?, ?);
                     """,
-                    (table_name, zoom_level, matrix_width, matrix_height,
-                     self.tile_width, self.tile_height, level_pixel_x_size, level_pixel_y_size)
+                    (table_name, zoom_level, overview.matrix_width, overview.matrix_height,
+                     self.tile_width, self.tile_height, overview.pixel_x_size, overview.pixel_y_size)
                 )
             except sqlite3.Error as e:
                 print("Error inserting entry into gpkg_tile_matrix for overview ", zoom_level, ": ", e.args[0])
                 return False
-            if not self.write_level(dataset, table_name, zoom_level, matrix_width, matrix_height):
+            if not self.write_level(dataset, table_name, zoom_level, overview):
                 print("Error writing full resolution tiles.")
                 return False
+            zoom_level += 1
         self.connection.commit()
         return True
 
-    def write_level(self, dataset, table_name, zoom_level, matrix_width, matrix_height):
+    def write_level(self, dataset, table_name, zoom_level, overview_info):
         """
         Write one zoom/resolution level into pyramid data table.
         @param dataset: Input dataset.
         @param table_name: Name of table to write pyramid data into.
         @param zoom_level: Zoom/Resolution level to write.
+        @param overview_level: Index to overview to use.
         @param matrix_width: Number of tiles in X.
         @param matrix_height: Number of tiles in Y.
         @return: True on success, False on failure.
@@ -281,10 +320,7 @@ class GeoPackage:
         src_bands = list()
         expand_palette = False
         for i in range(in_band_count):
-            if zoom_level == 0:
-                src_bands.append(dataset.GetRasterBand(i + 1))
-            else:
-                src_bands.append(dataset.GetRasterBand(i + 1).GetOverview(zoom_level - 1))
+            src_bands.append(dataset.GetRasterBand(i + 1))
         if self.format == 'image/jpeg' and in_band_count == 1 and \
                         src_bands[0].GetRasterColorInterpretation() == GCI_PaletteIndex:
             out_band_count = 3
@@ -303,21 +339,23 @@ class GeoPackage:
                         lut[c][i] = entry[c]
         else:
             lut = None
-        for tile_row in range(matrix_height):
-            for tile_column in range(matrix_width):
+        for tile_row in range(overview_info.matrix_height):
+            for tile_column in range(overview_info.matrix_width):
                 if not self.write_tile(src_bands, out_band_count,
                                        table_name, zoom_level,
-                                       tile_row, tile_column, expand_palette, lut):
+                                       tile_row, tile_column, overview_info,
+                                       expand_palette, lut):
                     print("Error writing full resolution image tiles to database.")
                     return False
         return True
 
-    def write_tile(self, src_bands, out_band_count, table_name, zoom_level,
-                   tile_row, tile_column, expand_palette=False, lut=None):
+    def write_tile(self, src_bands, out_band_count,
+                   table_name, zoom_level,
+                   tile_row, tile_column, overview_info,
+                   expand_palette=False, lut=None):
         """
         Extract specified tile from source dataset and write as a blob into GeoPackage, expanding colormap if required.
-        @param src_bands: Input bands.
-        @param out_band_count: Number of output bands.
+        @param dataset: Input dataset.
         @param table_name: Name of table to write pyramid data into.
         @param zoom_level: Zoom/Resolution level to write.
         @param tile_row: Tile index (Y).
@@ -326,25 +364,27 @@ class GeoPackage:
         @param lut: Color table.
         @return: True on success, False on failure.
         """
-        ulx = tile_column * self.tile_width
-        uly = tile_row * self.tile_height
-        tile_width = min(src_bands[0].XSize - ulx, self.tile_width)
-        tile_height = min(src_bands[0].YSize - uly, self.tile_height)
+        ulx = int(math.floor((tile_column * self.tile_width) * overview_info.factor_x))
+        uly = int(math.floor(((tile_row * self.tile_height) * overview_info.factor_y)))
+        input_tile_width = min(int(math.ceil(self.tile_width * overview_info.factor_x)), self.full_width - ulx)
+        input_tile_height = min(int(math.ceil(self.tile_height * overview_info.factor_y)), self.full_height - uly)
         memory_dataset = self.mem_driver.Create('', self.tile_width, self.tile_height, out_band_count, self.data_type)
         if memory_dataset is None:
             print("Error creating temporary in-memory dataset for tile ", tile_column, ", ", tile_row,
                   " at zoom level ", zoom_level)
             return False
         if expand_palette:
-            for y in range(tile_height):
-                input_data = src_bands[0].ReadAsArray(ulx, uly + y, tile_width, 1)
+            for y in range(self.tile_width):
+                input_data = src_bands[b].ReadAsArray(ulx, uly, input_tile_width, input_tile_height,
+                                                      self.tile_width, self.tile_height)
                 for b in range(out_band_count):
                     band_lut = lut[b]
                     output_data = numpy.take(band_lut, input_data)
                     memory_dataset.GetRasterBand(b + 1).WriteArray(output_data, 0, y)
         else:
             for b in range(out_band_count):
-                data = src_bands[b].ReadAsArray(ulx, uly, tile_width, tile_height)
+                data = src_bands[b].ReadAsArray(ulx, uly, input_tile_width, input_tile_height,
+                                                self.tile_width, self.tile_height)
                 memory_dataset.GetRasterBand(b + 1).WriteArray(data, 0, 0)
         filename = tempfile.mktemp(suffix='tmp', prefix='gpkg_tile')
         output_dataset = self.driver.CreateCopy(filename, memory_dataset, 0)
@@ -354,14 +394,14 @@ class GeoPackage:
             return False
         output_dataset = None
         memory_dataset = None
-        len = os.stat(filename).st_size
-        if len == 0:
+        size = os.stat(filename).st_size
+        if size == 0:
             print("Temporary dataset ", filename, "is 0 bytes.")
             os.unlink(filename)
             return False
         try:
             in_file = open(filename, 'rb')
-            tile_data = in_file.read(len)
+            tile_data = in_file.read(size)
             in_file.close()
         except IOError as e:
             print("Error reading temporary dataset ", filename, ": ", e.args[0])
@@ -397,6 +437,11 @@ class GeoPackage:
         try:
             self.connection.execute(
                 """
+                PRAGMA application_id = 1196437808;
+                """
+            )
+            self.connection.execute(
+                """
                 CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys ( \
                              srs_name TEXT NOT NULL, \
                              srs_id INTEGER NOT NULL PRIMARY KEY, \
@@ -418,6 +463,22 @@ class GeoPackage:
                 INSERT INTO gpkg_spatial_ref_sys(srs_name,srs_id,organization,organization_coordsys_id,definition)
                 SELECT 'Undefined Geographic', 0, 'NONE', 0, 'undefined'
                 WHERE NOT EXISTS(SELECT 1 FROM gpkg_spatial_ref_sys WHERE srs_id=0);
+                """
+            )
+            self.connection.execute(
+                """
+                INSERT INTO gpkg_spatial_ref_sys(srs_name,srs_id,organization,organization_coordsys_id,definition)
+                SELECT 'WGS84', 4326, 'EPSG', 4326, 'GEOGCS["WGS 84",
+                                                        DATUM["WGS_1984",
+                                                            SPHEROID["WGS 84",6378137,298.257223563,
+                                                                AUTHORITY["EPSG","7030"]],
+                                                            AUTHORITY["EPSG","6326"]],
+                                                        PRIMEM["Greenwich",0,
+                                                            AUTHORITY["EPSG","8901"]],
+                                                        UNIT["degree",0.01745329251994328,
+                                                            AUTHORITY["EPSG","9122"]],
+                                                        AUTHORITY["EPSG","4326"]]'
+                WHERE NOT EXISTS(SELECT 1 FROM gpkg_spatial_ref_sys WHERE srs_id=4326);
                 """
             )
             self.connection.execute(
@@ -450,7 +511,7 @@ class GeoPackage:
                                  CONSTRAINT pk_ttm PRIMARY KEY (table_name, zoom_level),
                                  CONSTRAINT fk_tmm_table_name FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name) );
                   """
-            )			
+            )
             self.connection.execute(
                 """
                     CREATE TRIGGER IF NOT EXISTS 'gpkg_tile_matrix_zoom_level_insert'
