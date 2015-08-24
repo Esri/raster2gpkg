@@ -139,6 +139,9 @@ class GeoPackage:
         if dataset.RasterCount < 1:
             print(filename, " does not contain any bands.")
             return False
+        if dataset.RasterCount == 1 and dataset.GetRasterBand(1).GetRasterColorInterpretation() == GCI_PaletteIndex:
+            print("Colormap is not supported.")
+            return False
         self.data_type = dataset.GetRasterBand(1).DataType
         if self.format == 'image/jpeg':
             if dataset.RasterCount != 1 and dataset.RasterCount != 3:
@@ -204,7 +207,6 @@ class GeoPackage:
                 VALUES(?, ?, ?, ?, ?, ?);
                 """,
                 (table_name, srs_id, min_x, max_y, max_x, min_y)
-
             )
             sql_string = """
                 CREATE TABLE """ + table_name + """ (
@@ -315,44 +317,18 @@ class GeoPackage:
         @param matrix_height: Number of tiles in Y.
         @return: True on success, False on failure.
         """
-        in_band_count = dataset.RasterCount
-        out_band_count = in_band_count
-        src_bands = list()
-        expand_palette = False
-        for i in range(in_band_count):
-            src_bands.append(dataset.GetRasterBand(i + 1))
-        if self.format == 'image/jpeg' and in_band_count == 1 and \
-                        src_bands[0].GetRasterColorInterpretation() == GCI_PaletteIndex:
-            out_band_count = 3
-            expand_palette = True
-        if expand_palette:
-            color_table = src_bands[0].GetRasterColorTable()
-            if color_table is not None:
-                color_table_size = max(256, color_table.GetCount())
-                lut = [numpy.arrayrange(color_table_size),
-                       numpy.arrayrange(color_table_size),
-                       numpy.arrayrange(color_table_size),
-                       numpy.ones(color_table_size) * 255]
-                for i in range(color_table_size):
-                    entry = color_table.GetColorEntry(i)
-                    for c in range(4):
-                        lut[c][i] = entry[c]
-        else:
-            lut = None
         for tile_row in range(overview_info.matrix_height):
             for tile_column in range(overview_info.matrix_width):
-                if not self.write_tile(src_bands, out_band_count,
+                if not self.write_tile(dataset,
                                        table_name, zoom_level,
-                                       tile_row, tile_column, overview_info,
-                                       expand_palette, lut):
+                                       tile_row, tile_column, overview_info):
                     print("Error writing full resolution image tiles to database.")
                     return False
         return True
 
-    def write_tile(self, src_bands, out_band_count,
+    def write_tile(self, dataset,
                    table_name, zoom_level,
-                   tile_row, tile_column, overview_info,
-                   expand_palette=False, lut=None):
+                   tile_row, tile_column, overview_info):
         """
         Extract specified tile from source dataset and write as a blob into GeoPackage, expanding colormap if required.
         @param dataset: Input dataset.
@@ -360,10 +336,9 @@ class GeoPackage:
         @param zoom_level: Zoom/Resolution level to write.
         @param tile_row: Tile index (Y).
         @param tile_column: Tile index (X).
-        @param expand_palette: True if palette has to be expanded.
-        @param lut: Color table.
         @return: True on success, False on failure.
         """
+        out_band_count = dataset.RasterCount
         ulx = int(math.floor((tile_column * self.tile_width) * overview_info.factor_x))
         uly = int(math.floor(((tile_row * self.tile_height) * overview_info.factor_y)))
         input_tile_width = min(int(math.ceil(self.tile_width * overview_info.factor_x)), self.full_width - ulx)
@@ -373,19 +348,9 @@ class GeoPackage:
             print("Error creating temporary in-memory dataset for tile ", tile_column, ", ", tile_row,
                   " at zoom level ", zoom_level)
             return False
-        if expand_palette:
-            for y in range(self.tile_width):
-                input_data = src_bands[b].ReadAsArray(ulx, uly, input_tile_width, input_tile_height,
-                                                      self.tile_width, self.tile_height)
-                for b in range(out_band_count):
-                    band_lut = lut[b]
-                    output_data = numpy.take(band_lut, input_data)
-                    memory_dataset.GetRasterBand(b + 1).WriteArray(output_data, 0, y)
-        else:
-            for b in range(out_band_count):
-                data = src_bands[b].ReadAsArray(ulx, uly, input_tile_width, input_tile_height,
-                                                self.tile_width, self.tile_height)
-                memory_dataset.GetRasterBand(b + 1).WriteArray(data, 0, 0)
+        data = dataset.ReadRaster(ulx, uly, input_tile_width, input_tile_height,
+                                  self.tile_width, self.tile_height)
+        memory_dataset.WriteRaster(0, 0, self.tile_width, self.tile_height, data)
         filename = tempfile.mktemp(suffix='tmp', prefix='gpkg_tile')
         output_dataset = self.driver.CreateCopy(filename, memory_dataset, 0)
         if output_dataset is None:
