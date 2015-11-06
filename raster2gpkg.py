@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """Simple script to add a dataset into an existing or new GeoPackage.
 Based on other python utilities but made PEP compliant.
 """
@@ -15,6 +15,9 @@ import tempfile
 import collections
 from osgeo import gdal
 from osgeo.gdalconst import *
+import cache2gpkg
+import shutil
+
 
 TILES_TABLE_SUFFIX = '_tiles'             # Added to basename to create table_name
 TILES_TABLE_PREFIX = 'table_'             # Used if basename starts with a non alphabet character
@@ -52,6 +55,28 @@ class GeoPackage:
                                                                                   'expected_pixel_x_size',
                                                                                   'expected_pixel_y_size'])
         self.overviews = []
+        self.tile_lod_info = [
+            [156543.033928, 591657527.591555],
+            [78271.5169639999, 295828763.795777],
+            [39135.7584820001, 147914381.897889],
+            [19567.8792409999, 73957190.948944],
+            [9783.93962049996, 36978595.474472],
+            [4891.96981024998, 18489297.737236],
+            [2445.98490512499, 9244648.868618],
+            [1222.99245256249, 4622324.434309],
+            [611.49622628138, 2311162.217155],
+            [305.748113140558, 1155581.108577],
+            [152.874056570411, 577790.554289],
+            [76.4370282850732, 288895.277144],
+            [38.2185141425366, 144447.638572],
+            [19.1092570712683, 72223.819286],
+            [9.55462853563415, 36111.909643],
+            [4.77731426794937, 18055.954822],
+            [2.38865713397468, 9027.977411],
+            [1.19432856685505, 4513.988705],
+            [0.597164283559817, 2256.994353],
+            [0.298582141647617, 1128.497176],
+            ]
 
     def __del__(self):
         if self.connection is not None:
@@ -161,150 +186,82 @@ class GeoPackage:
         else:
             print("Unsupported format specified: ", self.format)
             return False
-        identifier = os.path.basename(filename)
-        table_name = re.sub('[.~,;-]', '', identifier + TILES_TABLE_SUFFIX)
-        if not table_name[0].isalpha():
-            table_name = TILES_TABLE_PREFIX + table_name
-        if self.connection.execute("""SELECT * FROM gpkg_contents WHERE identifier=? OR table_name=?""",
-                                   (identifier, table_name)).fetchone() is not None:
-            print("An entry with identifier ", identifier,
-                  " and/or table_name ", table_name,
-                  " already exists in gpkg_contents.")
-            return False
-        srs_id = self.write_srs(dataset, identifier)
-        description = filename
+
+        tempFolder = tempfile.mkdtemp(suffix='_gpkg_cache')
+        cacheName = os.path.basename(filename)
+
+        pixel_x_size = 0.0
+        pixel_y_size = 0.0
+
+        min_x = 0.0
+        min_y = 0.0
+        max_x = 0.0
+        max_y = 0.0
+
         geotransform = dataset.GetGeoTransform(can_return_null=True)
         if geotransform is not None:
+            pixel_x_size = geotransform[1]
+            pixel_y_size = abs(geotransform[5])
             min_x = geotransform[0]
             min_y = geotransform[3]
             max_x = geotransform[0] + geotransform[1] * dataset.RasterXSize + geotransform[2] * dataset.RasterYSize
             max_y = geotransform[3] + geotransform[4] * dataset.RasterXSize + geotransform[5] * dataset.RasterYSize
-            pixel_x_size = geotransform[1]
-            pixel_y_size = abs(geotransform[5])
-            map_width = math.fabs(max_x - min_x)
-            map_height = math.fabs(max_y - min_y)
-        else:
-            min_x = 0.00
-            min_y = 0.00
-            max_x = dataset.RasterXSize
-            max_y = dataset.RasterYSize
-            pixel_x_size = 1.00
-            pixel_y_size = 1.00
-        self.compute_levels(pixel_x_size, pixel_y_size, dataset.RasterXSize, dataset.RasterYSize,
-                               map_width, map_height)
-        self.overviews.reverse()
-        try:
-            self.connection.execute(
-                """
-                INSERT INTO gpkg_contents(table_name, data_type, identifier, description, min_x, min_y, max_x, max_y, srs_id)
-                VALUES(?, 'tiles', ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (table_name, identifier, description, min_x, min_y, max_x, max_y, srs_id)
-            )
-            self.connection.execute(
-                """
-                INSERT INTO gpkg_tile_matrix_set(table_name, srs_id, min_x, min_y, max_x, max_y)
-                VALUES(?, ?, ?, ?, ?, ?);
-                """,
-                (table_name, srs_id, min_x, max_y, max_x, min_y)
-            )
-            sql_string = """
-                CREATE TABLE """ + table_name + """ (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  zoom_level INTEGER NOT NULL,
-                  tile_column INTEGER NOT NULL,
-                  tile_row INTEGER NOT NULL,
-                  tile_data BLOB NOT NULL,
-                  UNIQUE (zoom_level, tile_column, tile_row) );
-                """
-            self.connection.execute(sql_string)
-            sql_string = """
-                CREATE TRIGGER '""" + table_name + """_zoom_insert'
-                BEFORE INSERT ON '""" + table_name + """'
-                FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'insert on table """ + table_name + """ violates constraint: zoom_level not specified for table in gpkg_tile_matrix')
-                WHERE NOT (NEW.zoom_level IN (SELECT zoom_level FROM gpkg_tile_matrix WHERE table_name = '""" + table_name + """')) ;
-                END
-            """
-            self.connection.execute(sql_string)
-            sql_string = """
-                CREATE TRIGGER '""" + table_name + """_zoom_update'
-                BEFORE UPDATE OF zoom_level ON '""" + table_name + """'
-                FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'update on table """ + table_name + """ violates constraint: zoom_level not specified for table in gpkg_tile_matrix')
-                WHERE NOT (NEW.zoom_level IN (SELECT zoom_level FROM gpkg_tile_matrix WHERE table_name = '""" + table_name + """')) ;
-                END
-            """
-            self.connection.execute(sql_string)
-            sql_string = """
-                CREATE TRIGGER '""" + table_name + """_tile_column_insert'
-                BEFORE INSERT ON '""" + table_name + """'
-                FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'insert on table """ + table_name + """ violates constraint: tile_column cannot be < 0')
-                WHERE (NEW.tile_column < 0) ;
-                SELECT RAISE(ABORT, 'insert on table """ + table_name + """ violates constraint: tile_column must by < matrix_width specified for table and zoom level in gpkg_tile_matrix')
-                WHERE NOT (NEW.tile_column < (SELECT matrix_width FROM gpkg_tile_matrix WHERE table_name = '""" + table_name + """' AND zoom_level = NEW.zoom_level));
-                END
-            """
-            self.connection.execute(sql_string)
-            sql_string = """
-                CREATE TRIGGER '""" + table_name + """_tile_column_update'
-                BEFORE UPDATE OF tile_column ON '""" + table_name + """'
-                FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'update on table """ + table_name + """ violates constraint: tile_column cannot be < 0')
-                WHERE (NEW.tile_column < 0) ;
-                SELECT RAISE(ABORT, 'update on table """ + table_name + """ violates constraint: tile_column must by < matrix_width specified for table and zoom level in gpkg_tile_matrix')
-                WHERE NOT (NEW.tile_column < (SELECT matrix_width FROM gpkg_tile_matrix WHERE table_name = '""" + table_name + """' AND zoom_level = NEW.zoom_level));
-                END
-            """
-            self.connection.execute(sql_string)
-            sql_string = """
-                CREATE TRIGGER '""" + table_name + """_tile_row_insert'
-                BEFORE INSERT ON '""" + table_name + """'
-                FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'insert on table """ + table_name + """ violates constraint: tile_row cannot be < 0')
-                WHERE (NEW.tile_row < 0) ;
-                SELECT RAISE(ABORT, 'insert on table """ + table_name + """ violates constraint: tile_row must by < matrix_height specified for table and zoom level in gpkg_tile_matrix')
-                WHERE NOT (NEW.tile_row < (SELECT matrix_height FROM gpkg_tile_matrix WHERE table_name = '""" + table_name + """' AND zoom_level = NEW.zoom_level));
-                END
-            """
-            self.connection.execute(sql_string)
-            sql_string = """
-                CREATE TRIGGER '""" + table_name + """_tile_row_update'
-                BEFORE UPDATE OF tile_row ON '""" + table_name + """'
-                FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'update on table """ + table_name + """ violates constraint: tile_row cannot be < 0')
-                WHERE (NEW.tile_row < 0) ;
-                SELECT RAISE(ABORT, 'update on table """ + table_name + """ violates constraint: tile_row must by < matrix_height specified for table and zoom level in gpkg_tile_matrix')
-                WHERE NOT (NEW.tile_row < (SELECT matrix_height FROM gpkg_tile_matrix WHERE table_name = '""" + table_name + """' AND zoom_level = NEW.zoom_level));
-                END
-            """
-            self.connection.execute(sql_string)
-        except sqlite3.Error as e:
-            print("Error inserting entries into gpkg_contents and/or other tables: ", e.args[0])
+
+        if pixel_x_size == 0 or pixel_y_size == 0:
+            print("Invalid pixel sizes")
             return False
-        self.connection.commit()
-        zoom_level = 0
-        for overview in self.overviews:
-            try:
-                self.connection.execute(
-                    """
-                    INSERT INTO gpkg_tile_matrix(table_name, zoom_level, matrix_width, matrix_height, tile_width,
-                                                 tile_height, pixel_x_size, pixel_y_size)
-                    VALUES(?, ?, ?, ?, ?, ?, ?, ?);
-                    """,
-                    (table_name, zoom_level, overview.matrix_width, overview.matrix_height,
-                     self.tile_width, self.tile_height, overview.pixel_x_size, overview.pixel_y_size)
-                )
-            except sqlite3.Error as e:
-                print("Error inserting entry into gpkg_tile_matrix for overview ", zoom_level, ": ", e.args[0])
-                return False
-            if not self.write_level(dataset, table_name, zoom_level, overview):
-                print("Error writing full resolution tiles.")
-                return False
-            zoom_level += 1
-        self.connection.commit()
+
+        if min_x == 0.0 or min_y == 0.0 or max_x == 0.0 or max_y == 0.0:
+            print("Invalid extent")
+            return False
+
+        # Set the source_pixel_size to wice the original resolution to compute the max scale
+        source_pixel_size = pixel_x_size * 2.0
+
+        # Set the max cell size to twice the cell size required for a super tile size of 512
+        max_pixel_size = ((max_x - min_x) / 256 ) * 2.0
+
+        min_scale = 0.0
+        max_scale = 0.0
+
+        for lod_info in self.tile_lod_info:
+            print(lod_info[0], lod_info[1])
+            if source_pixel_size > lod_info[0]:
+                break
+            max_scale = lod_info[1]
+
+        for lod_info in self.tile_lod_info:
+            print(lod_info[0], lod_info[1])
+            if max_pixel_size > lod_info[0]:
+                break
+            min_scale = lod_info[1]
+
+        dataset = None
+
+        arcmap_bin_dir = os.path.dirname(sys.executable)
+        arcmap_dir = os.path.dirname(arcmap_bin_dir)
+        arcmap_tilingscheme_dir = os.path.join(arcmap_dir, 'TilingSchemes', 'gpkg_scheme.xml')
+        #os.path.join(arcmap_tilingscheme_dir, '/gpkg_scheme.xml')
+
+        arcpy.ManageTileCache_management(in_cache_location=tempFolder,
+                                         manage_mode='RECREATE_ALL_TILES',
+                                         in_cache_name=cacheName,
+                                         in_datasource=filename,
+                                         tiling_scheme='IMPORT_SCHEME',
+                                         import_tiling_scheme=arcmap_tilingscheme_dir,
+                                         max_cached_scale=max_scale,
+                                         min_cached_scale=min_scale)
+
+        
+        cachePath = tempFolder + "/" + cacheName
+        cache2gpkg.cache2gpkg(cachePath, self.filename, True)
+
+        print("GeoPackage created")
+
+        shutil.rmtree(tempFolder)
+        tempFolder = None
         return True
+
 
     def write_level(self, dataset, table_name, zoom_level, overview_info):
         """
@@ -646,6 +603,3 @@ if __name__ == '__main__':
         print('ERROR: Python bindings of GDAL 1.8.0 or later required')
         sys.exit(1)
     sys.exit(main(sys.argv))
-
-
-
