@@ -9,7 +9,7 @@ This is a Python based Geoprocessing tool that loads jpeg or png images to a Geo
 
 The python directory contains:
 osgeo
-gdal.pt
+gdal.py
 gdalconst.py
 gdalnumeric.py
 osr.py
@@ -18,7 +18,7 @@ osr.py
 
 3) Copy gdal18.dll to Desktop10.3\bin
 
-4) Copy gpkg_scheme.xml to Desktop10.3\C:\ArcGIS\Desktop10.4\TilingSchemes
+4) Copy gpkg_scheme.xml to Desktop10.3\TilingSchemes
 
 5) In ArcCatalog navigate to MyToolboxes, and drag the "GeoPackage" from the GeoPackageToolbox.tbx\GeoPackage over.
 

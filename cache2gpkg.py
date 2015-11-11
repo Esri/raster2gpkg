@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """Simple script to package cache folder into GeoPackage.
 
  Includes GlobalMercator class from gdal2tiles.py by Klokan Petr Pridal, klokan at klokan dot cz
@@ -468,15 +468,9 @@ class GeoPackage:
         """
         if self.cache.wkt is None:
             return -1
-        result = self.connection.execute("""SELECT * FROM gpkg_spatial_ref_sys WHERE srs_name=?;""",
-                                         (srs_name,)).fetchone()
+        result = self.connection.execute("""SELECT * FROM gpkg_spatial_ref_sys WHERE srs_id=?;""",
+                                         (self.cache.srs_id,)).fetchone()
         if result is None:
-            result = self.connection.execute(
-                """SELECT MAX(srs_id) AS max_id FROM gpkg_spatial_ref_sys;""").fetchone()
-            if result is None:
-                return -1
-            srs_id = result['max_id']
-            srs_id += 1
             self.connection.execute(
                 """
                 INSERT INTO gpkg_spatial_ref_sys(srs_name, srs_id, organization, organization_coordsys_id, definition)
