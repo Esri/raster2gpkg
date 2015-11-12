@@ -164,28 +164,28 @@ class GeoPackage:
         if dataset.RasterCount < 1:
             print(filename, " does not contain any bands.")
             return False
-        if dataset.RasterCount == 1 and dataset.GetRasterBand(1).GetRasterColorInterpretation() == GCI_PaletteIndex:
-            print("Colormap is not supported.")
-            return False
+        #if dataset.RasterCount == 1 and dataset.GetRasterBand(1).GetRasterColorInterpretation() == GCI_PaletteIndex:
+        #    print("Colormap is not supported.")
+        #    return False
         self.data_type = dataset.GetRasterBand(1).DataType
-        if self.format == 'image/jpeg':
-            if dataset.RasterCount != 1 and dataset.RasterCount != 3:
-                print("For image/jpeg, only datasets with 1 (grayscale) or 3 (RGB/YCbCr) bands are allowed.")
-                return False
-            if self.data_type != GDT_Byte:
-                print("For image/jpeg, only 8 bit unsigned data is supported.")
-                return False
-        elif self.format == 'image/png':
-            if dataset.RasterCount > 4:
-                print("For image/png, only datasets with 1 (grayscale), 2 (grascale + alpha), "
-                      "3 (RGB) or 4 (RGBA) bands are allowed.")
-                return False
-            if self.data_type != GDT_Byte and self.data_type != GDT_UInt16:
-                print("For image/png, only 8 or 16 bit unsigned data is supported.")
-                return False
-        else:
-            print("Unsupported format specified: ", self.format)
-            return False
+        #if self.format == 'image/jpeg':
+        #    if dataset.RasterCount != 1 and dataset.RasterCount != 3:
+        #        print("For image/jpeg, only datasets with 1 (grayscale) or 3 (RGB/YCbCr) bands are allowed.")
+        #        return False
+        #    if self.data_type != GDT_Byte:
+        #        print("For image/jpeg, only 8 bit unsigned data is supported.")
+        #        return False
+        #elif self.format == 'image/png':
+        #    if dataset.RasterCount > 4:
+        #        print("For image/png, only datasets with 1 (grayscale), 2 (grascale + alpha), "
+        #              "3 (RGB) or 4 (RGBA) bands are allowed.")
+        #        return False
+        #    if self.data_type != GDT_Byte and self.data_type != GDT_UInt16:
+        #        print("For image/png, only 8 or 16 bit unsigned data is supported.")
+        #        return False
+        #else:
+        #    print("Unsupported format specified: ", self.format)
+        #    return False
 
         tempFolder = tempfile.mkdtemp(suffix='_gpkg_cache')
         cacheName = os.path.basename(filename)
@@ -258,7 +258,7 @@ class GeoPackage:
 
         print("GeoPackage created")
 
-        shutil.rmtree(tempFolder)
+        #shutil.rmtree(tempFolder)
         tempFolder = None
         return True
 
