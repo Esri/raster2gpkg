@@ -268,6 +268,8 @@ class Cache:
         self.mercator = GlobalMercator()
         self.verbose = False
         self.srs_id = 0
+        self.srs_org_id = 3857
+        self.srs_org_name = 'EPSG'
         self.level_info = collections.namedtuple('level_info', ['startX', 'startY',
                                                                 'stopX', 'stopY',
                                                                 'matrix_width', 'matrix_height',
@@ -307,10 +309,18 @@ class Cache:
         originElement = self.xmlTree.iterfind('YMax')
         if originElement is not None:
             self.max_y = float(next(originElement).text)
+
+        print("self.max_x = {0}".format(self.max_x))
+        print("self.max_y = {0}".format(self.max_y))
+
         if self.max_y > self.min_y:
             tmp = self.min_y
             self.min_y = self.max_y
             self.max_y = tmp
+        
+        print("self.max_x = {0}".format(self.max_x))
+        print("self.max_y = {0}".format(self.max_y))
+    
         if self.wkt is None or self.min_x is None or self.min_y is None or self.max_x is None or self.max_y is None:
             return False
         latestWKIDElement = self.xmlTree.iterfind('SpatialReference/LatestWKID')
@@ -323,8 +333,8 @@ class Cache:
         startX, startY, stopX, stopY = self.getTileStartStopLL(ulLatLon[0], ulLatLon[1], lrLatLon[0], lrLatLon[1], self.levels[0])
         ulLatLon = self.num2deg(startX, startY, self.levels[0])
         lrLatLon = self.num2deg(stopX, stopY, self.levels[0])
-        self.matrix_min_x, self.matrix_min_y = self.mercator.LatLonToMeters(ulLatLon[0], ulLatLon[1])
-        self.matrix_max_x, self.matrix_max_y = self.mercator.LatLonToMeters(lrLatLon[0], lrLatLon[1])
+        self.matrix_min_x, self.matrix_max_y = self.mercator.LatLonToMeters(ulLatLon[0], ulLatLon[1])
+        self.matrix_max_x, self.matrix_min_y = self.mercator.LatLonToMeters(lrLatLon[0], lrLatLon[1])
         for index, level in enumerate(self.levels):
             if index == 0:
                 startX, startY, stopX, stopY = self.getTileStartStop(self.levels[0])
@@ -474,10 +484,10 @@ class GeoPackage:
             self.connection.execute(
                 """
                 INSERT INTO gpkg_spatial_ref_sys(srs_name, srs_id, organization, organization_coordsys_id, definition)
-                            VALUES(?, ?, 'NONE', 0, ?)
-                """, (srs_name, self.cache.srs_id, self.cache.wkt))
+                            VALUES(?, ?, ?, ?, ?)
+                """, (srs_name, self.cache.srs_id, self.cache.srs_org_name, self.cache.srs_org_id, self.cache.wkt))
             self.connection.commit()
-            return srs_id
+            return self.cache.srs_id
         else:
             return result['srs_id']
 
@@ -488,7 +498,7 @@ class GeoPackage:
         table_name = re.sub('[.~,;-]', '', identifier + TILES_TABLE_SUFFIX)
         if not table_name[0].isalpha():
             table_name = TILES_TABLE_PREFIX + table_name
-        table_name = table_name.lower()
+        #table_name = table_name.lower()
         if self.connection.execute("""SELECT * FROM gpkg_contents WHERE identifier=? OR table_name=?""",
                                    (identifier, table_name)).fetchone() is not None:
             print("An entry with identifier {0} and/or table_name {1} already exists in gpkg_contents.".format(identifier, table_name))

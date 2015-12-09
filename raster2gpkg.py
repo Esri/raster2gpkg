@@ -82,131 +82,50 @@ class GeoPackage:
         if self.connection is not None:
             self.connection.close()
 
-    def compute_levels(self, pixel_x_size, pixel_y_size, width, height, map_width, map_height):
-        level = 1
-        self.full_width = width
-        self.full_height = height
-        width = int(math.pow(2, math.floor(math.log(width)/math.log(2))))
-        height = int(math.pow(2, math.floor(math.log(height)/math.log(2))))
-        matrix_width = int(math.ceil(float(width) / float(self.tile_width)))
-        matrix_height = int(math.ceil(float(height) / float(self.tile_height)))
-        layer_pixel_x_size = (map_width / matrix_width) / self.tile_width
-        layer_pixel_y_size = (map_height / matrix_height) / self.tile_height
-        layer_width = int(math.ceil(map_width / layer_pixel_x_size))
-        layer_height = int(math.ceil(map_height / layer_pixel_y_size))
-        factor_x = float(self.full_width) / float(layer_width)
-        factor_y = float(self.full_height) / float(layer_height)
-        expected_pixel_x_size = (map_width / matrix_width) / self.tile_width
-        expected_pixel_y_size = (map_height / matrix_height) / self.tile_height
-        self.overviews.append(self.ResolutionLayerInfo(factor_x, factor_y, layer_pixel_x_size, layer_pixel_y_size,
-                                                       layer_width, layer_height, matrix_width, matrix_height,
-                                                       expected_pixel_x_size, expected_pixel_y_size))
-        while 1:
-            factor = pow(2, level)
-            overview_pixel_x_size = layer_pixel_x_size * float(factor)
-            overview_pixel_y_size = layer_pixel_y_size * float(factor)
-            overview_width = int(math.ceil(map_width / overview_pixel_x_size))
-            overview_height = int(math.ceil(map_height / overview_pixel_y_size))
-            matrix_width = int(math.floor(float(overview_width) / float(self.tile_width)))
-            matrix_height = int(math.floor(float(overview_height) / float(self.tile_height)))
-            expected_pixel_x_size = (map_width / matrix_width) / self.tile_width
-            expected_pixel_y_size = (map_height / matrix_height) / self.tile_height
-            factor_x = float(self.full_width) / float(overview_width)
-            factor_y = float(self.full_height) / float(overview_height)
-            if overview_width < 1024 or overview_height < 1024:
-                break
-            self.overviews.append(self.ResolutionLayerInfo(factor_x, factor_y, overview_pixel_x_size, overview_pixel_y_size,
-                                                           overview_width, overview_height,
-                                                           matrix_width, matrix_height,
-                                                           expected_pixel_x_size, expected_pixel_y_size))
-            level += 1
-        # for overview in self.overviews:
-        #     print(overview.factor_x, overview.factor_y, overview.pixel_x_size, overview.pixel_y_size, overview.width, overview.height,
-        #           overview.matrix_width, overview.matrix_height, overview.expected_pixel_x_size, overview.expected_pixel_y_size)
-        #     print((map_width/overview.matrix_width)/self.tile_width,(map_height/overview.matrix_height)/self.tile_height)
-        return True
-
-
-    def write_srs(self, dataset, srs_name):
-        """
-        Extract and write SRS to gpkg_spatial_ref_sys table and return srs_id.
-        @param dataset: Input dataset.
-        @param srs_name: Value for srs_name field.
-        @return: srs_id for new entry or -1 (undefined cartesian)
-        """
-        if dataset is None:
-            return -1
-        result = self.connection.execute("""SELECT * FROM gpkg_spatial_ref_sys WHERE srs_name=?;""",
-                                         (srs_name,)).fetchone()
-        if result is None:
-            prj = dataset.GetProjectionRef()
-            if prj is not None:
-                result = self.connection.execute(
-                    """SELECT MAX(srs_id) AS max_id FROM gpkg_spatial_ref_sys;""").fetchone()
-                if result is None:
-                    return -1
-                srs_id = result['max_id']
-                srs_id += 1
-                self.connection.execute(
-                    """
-                    INSERT INTO gpkg_spatial_ref_sys(srs_name, srs_id, organization, organization_coordsys_id, definition)
-                                VALUES(?, ?, 'NONE', 0, ?)
-                    """, (srs_name, srs_id, prj))
-                self.connection.commit()
-                return srs_id
-        else:
-            return result['srs_id']
-
     def add_dataset(self, filename):
-        dataset = gdal.Open(filename, GA_ReadOnly)
-        if dataset is None:
+        raster_desc = arcpy.Describe(filename)
+        if raster_desc is None:
+            arcpy.AddError("Failed to describe input")
             return False
-        if dataset.RasterCount < 1:
-            print(filename, " does not contain any bands.")
-            return False
-        #if dataset.RasterCount == 1 and dataset.GetRasterBand(1).GetRasterColorInterpretation() == GCI_PaletteIndex:
-        #    print("Colormap is not supported.")
-        #    return False
-        self.data_type = dataset.GetRasterBand(1).DataType
-        #if self.format == 'image/jpeg':
-        #    if dataset.RasterCount != 1 and dataset.RasterCount != 3:
-        #        print("For image/jpeg, only datasets with 1 (grayscale) or 3 (RGB/YCbCr) bands are allowed.")
-        #        return False
-        #    if self.data_type != GDT_Byte:
-        #        print("For image/jpeg, only 8 bit unsigned data is supported.")
-        #        return False
-        #elif self.format == 'image/png':
-        #    if dataset.RasterCount > 4:
-        #        print("For image/png, only datasets with 1 (grayscale), 2 (grascale + alpha), "
-        #              "3 (RGB) or 4 (RGBA) bands are allowed.")
-        #        return False
-        #    if self.data_type != GDT_Byte and self.data_type != GDT_UInt16:
-        #        print("For image/png, only 8 or 16 bit unsigned data is supported.")
-        #        return False
-        #else:
-        #    print("Unsupported format specified: ", self.format)
-        #    return False
 
-        tempFolder = tempfile.mkdtemp(suffix='_gpkg_cache')
-        cacheName = os.path.basename(filename)
+        arcpy.AddMessage("Raster described {0}".format(filename))
 
-        pixel_x_size = 0.0
-        pixel_y_size = 0.0
+        srs = raster_desc.spatialReference
+        extent = raster_desc.Extent
 
-        min_x = 0.0
-        min_y = 0.0
-        max_x = 0.0
-        max_y = 0.0
+        #compute the new projected extent
+        new_srs = arcpy.SpatialReference(3857)
+        new_extent = extent.projectAs(new_srs)
 
-        geotransform = dataset.GetGeoTransform(can_return_null=True)
-        if geotransform is not None:
-            pixel_x_size = geotransform[1]
-            pixel_y_size = abs(geotransform[5])
-            min_x = geotransform[0]
-            min_y = geotransform[3]
-            max_x = geotransform[0] + geotransform[1] * dataset.RasterXSize + geotransform[2] * dataset.RasterYSize
-            max_y = geotransform[3] + geotransform[4] * dataset.RasterXSize + geotransform[5] * dataset.RasterYSize
+        #compute the new projected source cellsize using the extent of one cell from the input
+        #extent of one cell in the input is:
+        #xmin = input_xmin
+        #xmax = input_xmin + input_x_cell_size
+        #ymin = input_ymin
+        #ymax = input_ymin + input_y_cell_size
+        
+        input_cs_x = float(str(arcpy.GetRasterProperties_management(filename, 'CELLSIZEX')))
+        input_cs_y = float(str(arcpy.GetRasterProperties_management(filename, 'CELLSIZEY')))
+        
+        arcpy.AddMessage("Input CS X: {0}".format(input_cs_x))
+        arcpy.AddMessage("Input CS Y: {0}".format(input_cs_y))
 
+        #update the 'extent' with cell extent
+        extent.XMax = extent.XMin + input_cs_x
+        extent.YMax = extent.YMin + input_cs_y
+
+        new_cell_extent = extent.projectAs(new_srs)
+
+        # Get the cell size of the projected_raster
+        pixel_x_size = new_cell_extent.width
+        pixel_y_size = new_cell_extent.height
+
+        # Get the extent of the projected_raster
+        max_y = new_extent.YMax
+        min_y = new_extent.YMin
+        min_x = new_extent.XMin
+        max_x = new_extent.XMax
+       
         if pixel_x_size == 0 or pixel_y_size == 0:
             print("Invalid pixel sizes")
             return False
@@ -215,11 +134,11 @@ class GeoPackage:
             print("Invalid extent")
             return False
 
-        # Set the source_pixel_size to wice the original resolution to compute the max scale
-        source_pixel_size = pixel_x_size * 2.0
+        # Set the source_pixel_size to twice the original resolution to compute the max scale
+        source_pixel_size = pixel_x_size
 
         # Set the max cell size to twice the cell size required for a super tile size of 512
-        max_pixel_size = ((max_x - min_x) / 256 ) * 2.0
+        max_pixel_size = (max_x - min_x) / 256
 
         min_scale = 0.0
         max_scale = 0.0
@@ -236,12 +155,14 @@ class GeoPackage:
                 break
             min_scale = lod_info[1]
 
-        dataset = None
+        tempFolder = tempfile.mkdtemp(suffix='_gpkg_cache')
+        cacheName = os.path.basename(filename)
 
         arcmap_bin_dir = os.path.dirname(sys.executable)
         arcmap_dir = os.path.dirname(arcmap_bin_dir)
         arcmap_tilingscheme_dir = os.path.join(arcmap_dir, 'TilingSchemes', 'gpkg_scheme.xml')
-        #os.path.join(arcmap_tilingscheme_dir, '/gpkg_scheme.xml')
+
+        arcpy.AddMessage("Generating tiles in {0}".format(tempFolder))
 
         arcpy.ManageTileCache_management(in_cache_location=tempFolder,
                                          manage_mode='RECREATE_ALL_TILES',
@@ -252,95 +173,19 @@ class GeoPackage:
                                          max_cached_scale=max_scale,
                                          min_cached_scale=min_scale)
 
-        
+        arcpy.AddMessage("Creating GeoPackage {0}".format(self.filename))
+
         cachePath = tempFolder + "/" + cacheName
         cache2gpkg.cache2gpkg(cachePath, self.filename, True)
 
-        print("GeoPackage created")
-
-        #shutil.rmtree(tempFolder)
-        tempFolder = None
-        return True
-
-
-    def write_level(self, dataset, table_name, zoom_level, overview_info):
-        """
-        Write one zoom/resolution level into pyramid data table.
-        @param dataset: Input dataset.
-        @param table_name: Name of table to write pyramid data into.
-        @param zoom_level: Zoom/Resolution level to write.
-        @param overview_level: Index to overview to use.
-        @param matrix_width: Number of tiles in X.
-        @param matrix_height: Number of tiles in Y.
-        @return: True on success, False on failure.
-        """
-        for tile_row in range(overview_info.matrix_height):
-            for tile_column in range(overview_info.matrix_width):
-                if not self.write_tile(dataset,
-                                       table_name, zoom_level,
-                                       tile_row, tile_column, overview_info):
-                    print("Error writing full resolution image tiles to database.")
-                    return False
-        return True
-
-    def write_tile(self, dataset,
-                   table_name, zoom_level,
-                   tile_row, tile_column, overview_info):
-        """
-        Extract specified tile from source dataset and write as a blob into GeoPackage, expanding colormap if required.
-        @param dataset: Input dataset.
-        @param table_name: Name of table to write pyramid data into.
-        @param zoom_level: Zoom/Resolution level to write.
-        @param tile_row: Tile index (Y).
-        @param tile_column: Tile index (X).
-        @return: True on success, False on failure.
-        """
-        out_band_count = dataset.RasterCount
-        ulx = int(math.floor((tile_column * self.tile_width) * overview_info.factor_x))
-        uly = int(math.floor(((tile_row * self.tile_height) * overview_info.factor_y)))
-        input_tile_width = min(int(math.ceil(self.tile_width * overview_info.factor_x)), self.full_width - ulx)
-        input_tile_height = min(int(math.ceil(self.tile_height * overview_info.factor_y)), self.full_height - uly)
-        memory_dataset = self.mem_driver.Create('', self.tile_width, self.tile_height, out_band_count, self.data_type)
-        if memory_dataset is None:
-            print("Error creating temporary in-memory dataset for tile ", tile_column, ", ", tile_row,
-                  " at zoom level ", zoom_level)
-            return False
-        data = dataset.ReadRaster(ulx, uly, input_tile_width, input_tile_height,
-                                  self.tile_width, self.tile_height)
-        memory_dataset.WriteRaster(0, 0, self.tile_width, self.tile_height, data)
-        filename = tempfile.mktemp(suffix='tmp', prefix='gpkg_tile')
-        output_dataset = self.driver.CreateCopy(filename, memory_dataset, 0)
-        if output_dataset is None:
-            print("Error creating temporary dataset for tile ", tile_column, ", ", tile_row,
-                  " at zoom level ", zoom_level)
-            return False
-        output_dataset = None
-        memory_dataset = None
-        size = os.stat(filename).st_size
-        if size == 0:
-            print("Temporary dataset ", filename, "is 0 bytes.")
-            os.unlink(filename)
-            return False
-        try:
-            in_file = open(filename, 'rb')
-            tile_data = in_file.read(size)
-            in_file.close()
-        except IOError as e:
-            print("Error reading temporary dataset ", filename, ": ", e.args[0])
-            os.unlink(filename)
-            return False
-        try:
-            self.connection.execute(
-                """
-                INSERT INTO """ + table_name + """(zoom_level, tile_column, tile_row, tile_data)
-                VALUES (?, ?, ?, ?);
-                """,
-                (zoom_level, tile_column, tile_row, buffer(tile_data))
-            )
-        except sqlite3.Error as e:
-            print("Error inserting blob for tile ", tile_column, tile_row, ": ", e.args[0])
-            return False
-        os.unlink(filename)
+        arcpy.AddMessage("GeoPackage {0} created".format(self.filename))
+        
+        ### Cleanup
+        new_srs = None
+        new_extent = None
+        raster_desc = None
+        shutil.rmtree(tempFolder)
+        
         return True
 
     def open(self, filename):
