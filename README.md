@@ -5,36 +5,22 @@ This is a Python based Geoprocessing tool that loads jpeg or png images to a Geo
 ## Features
 
 ## Instructions
-1) Copy the contents of the python directory under the python site-packages directory. Usually C:\Python27\ArcGIS10.3\Lib\site-packages.
+Installation
+1. Download Github repository as zip file onto your local hard disk, and unzip it into a folder. 
+2. Copy the contents of the python directory from the unzipped folder to C:\Python27\ArcGIS10.3\Lib\site-packages.
+3. Copy cache2gpkg.py to C:\Python27\ArcGIS10.3
+4. Copy gdal18.dll to C:\Program Files (x86)\ArcGIS\Desktop10.3\bin  (note: you may need administrator access)
+5. Copy gpkg_scheme.xml to C:\Program Files(x86)\ArcGIS\Desktop10.3\TilingSchemes (note: you may need administrator access)
+6. Start ArcGIS Desktop 10.3.1 and launch ArcToolBox.  Right-click inside ArcToolBox, select “Add Toolbox”, and add the GeoPackage Toolbox from your unzipped folder. 
+To Create a Raster OGC GeoPackage in ArcGIS 
+1. In ArcToolBox open the GeoPackage Toolbox and create a new empty OGC GeoPackage using the Create SQLite Database tool. Make sure to select "GEOPACKAGE" as the spatial type.
+2. In ArcToolBox click on the Raster to GeoPackage tool.  Navigate to the new empty OGC GeoPackage that you just created and select a jpeg or png image to be loaded into the GPKG (e.g. “q0513ne.jpg”). Click OK.
 
-The python directory contains:
-osgeo
-gdal.py
-gdalconst.py
-gdalnumeric.py
-osr.py
-
-2) Copy cache2gpkg.py to the python directory. Usually C:\Python27\ArcGIS10.3
-
-3) Copy gdal18.dll to Desktop10.3\bin
-
-4) Copy gpkg_scheme.xml to Desktop10.3\TilingSchemes
-
-5) In ArcCatalog navigate to MyToolboxes, and drag the "GeoPackage" from the GeoPackageToolbox.tbx\GeoPackage over.
-
-6) In ArcCatalog create a geopackage using the CreateSQLiteDatabase GP tool. Make sure to select "GEOPACKAGE" as the spatial type.
-
-7) Load the image into a geopackage (.gpkg)
- - Navigate to the target geopackage.
- - Navigate to the image to be loaded.
- - Select the image type. (jpeg, png).
- - Select Ok.
-
-8) In ArcMap bring up the Toolbox.
- - Select the Make Raster Layer tool from the Data Management\Layers and Table Views toolbox.
- - Navigate to the geopackage containing the loaded image and select the image (main.q0513nejpg_tiles), Anything you load will have a "_tiles" on the end of the name.
- - Accept the default raster layer name.
- - Click OK. The python script, "raster2gpkg.py is located in \\jotunheimen\C\gdal2gpkgWorkup. It's also been loaded into the GP tool and is not needed for install.
+To Load a Raster OGC GeoPackage into ArcGIS
+1. In ArcToolbox go to Data Management > Layers and Table Views > Make Raster Layer 
+2. Navigate to an OGC GeoPackage containing raster data and select the tiles table (e.g. “main.q0513nejpg_tiles”)
+3. Accept the default raster layer name.
+4. Click OK. lick OK. The python script, "raster2gpkg.py is located in \\jotunheimen\C\gdal2gpkgWorkup. It's also been loaded into the GP tool and is not needed for install.
  
 9) Data
 example.gpkg - Sample empty geopackage. 
