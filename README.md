@@ -34,6 +34,8 @@ q0513ne.jpg - Sample image for loading.
 
 * ArcGIS Desktop 10.3 with http://support.esri.com/en/downloads/patches-servicepacks/view/productid/66/metaid/2200
 * ArcGIS Desktop 10.3.1
+* ArcGIS Desktop 10.4
+* ArcGIS Desktop 10.4.1
 
 ## Resources
 * [ArcGIS Blog](http://blogs.esri.com/esri/arcgis/)
@@ -47,7 +49,7 @@ Find a bug or want to request a new feature?  Please let us know by submitting a
 Esri welcomes contributions from anyone and everyone. Please see our [guidelines for contributing](https://github.com/esri/contributing).
 
 ## Licensing
-Copyright 2015 Esri
+Copyright 2016 Esri
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
