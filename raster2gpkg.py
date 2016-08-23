@@ -126,10 +126,10 @@ class GeoPackage:
         #xmax = input_xmin + input_x_cell_size
         #ymin = input_ymin
         #ymax = input_ymin + input_y_cell_size
-        
+
         input_cs_x = float(str(arcpy.GetRasterProperties_management(filename, 'CELLSIZEX')))
         input_cs_y = float(str(arcpy.GetRasterProperties_management(filename, 'CELLSIZEY')))
-        
+
         arcpy.AddMessage("Input CS X: {0}".format(input_cs_x))
         arcpy.AddMessage("Input CS Y: {0}".format(input_cs_y))
 
@@ -148,7 +148,7 @@ class GeoPackage:
         min_y = new_extent.YMin
         min_x = new_extent.XMin
         max_x = new_extent.XMax
-       
+
         if pixel_x_size == 0 or pixel_y_size == 0:
             print("Invalid pixel sizes")
             return False
@@ -185,6 +185,9 @@ class GeoPackage:
         arcmap_dir = os.path.dirname(arcmap_bin_dir)
         arcmap_tilingscheme_dir = os.path.join(arcmap_dir, 'TilingSchemes', 'gpkg_scheme.xml')
 
+        if os.path.isfile(arcmap_tilingscheme_dir) == False:
+            raise arcpy.ExecuteError("Tiling Scheme File is Missing.")
+
         arcpy.AddMessage("Generating tiles in {0}".format(tempFolder))
 
         arcpy.ManageTileCache_management(in_cache_location=tempFolder,
@@ -202,13 +205,13 @@ class GeoPackage:
         cache2gpkg.cache2gpkg(cachePath, self.filename, True)
 
         arcpy.AddMessage("GeoPackage {0} created".format(self.filename))
-        
+
         ### Cleanup
         new_srs = None
         new_extent = None
         raster_desc = None
         shutil.rmtree(tempFolder)
-        
+
         return True
 
     def open(self, filename):
@@ -441,19 +444,19 @@ def main(argv=None):
     dataset_filename = None
     gpkg_filename = None
     gpkg = GeoPackage()
-    
+
     dataset_filename = arcpy.GetParameterAsText(0)
     gpkg_filename = arcpy.GetParameterAsText(1)
-    
+
     image_extension = os.path.splitext(dataset_filename)[1][1:].strip()
-    
+
     if image_extension.lower() in ('jpg', 'jpeg'):
         gpkg.format = "image/jpeg"
     elif image_extension.lower() == 'png':
         gpkg.format = "image/png"
     else:
-        extension = ''    
-    
+        extension = ''
+
     if not gpkg.open(gpkg_filename):
         print("ERROR: Failed to open or create ", gpkg_filename)
         return 1
