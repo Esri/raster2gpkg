@@ -28,11 +28,14 @@ This is a Python based Geoprocessing tool that loads jpeg or png images to a Geo
 
 #### ArcGIS 10.4.1
 1. Copy the contents of the Desktop python directory from the unzipped folder to C:\Python27\ArcGIS10.4\Lib\site-packages.
-2. Copy cache2gpkg.py to C:\Python27\ArcGIS10.4
-3. Copy gdal18.dll, GPCoreFunctions.dll, GpRasterFunctions.dll and RasterRenderer.dll to C:\Program Files (x86)\ArcGIS\Desktop10.4\bin  (note: You may need administrator access).
-4. Copy gpkg_scheme.xml to C:\Program Files(x86)\ArcGIS\Desktop10.4\TilingSchemes (note: you may need administrator access)
-5. Copy the GeoPackageToolbox.tbx and raster2gpkg.py to a folder. A folder that will not get overwritten.
-6. Start ArcGIS Desktop 10.4 and launch ArcToolBox.  Right-click inside ArcToolBox, select “Add Toolbox”, and add the GeoPackage Toolbox from the folder from step number 5. 
+2. Copy cache2gpkg.py and cache2gpkgWGS84.py to C:\Python27\ArcGIS10.4
+3. Copy *.dll to C:\Program Files (x86)\ArcGIS\Desktop10.4\bin (note: You may need administrator access).
+4. Copy gpkg_scheme.xml and gpkg_schemeWGS84.xml to C:\Program Files(x86)\ArcGIS\Desktop10.4\TilingSchemes (note: you may need administrator access)
+5. Copy the GeoPackageToolbox.tbx , raster2gpkg.py and raster2gpkgWGS84.py to a folder. A folder that will not get overwritten.
+6. Start ArcGIS Desktop 10.4.1 and launch ArcToolBox. Right-click inside ArcToolBox, select “Add Toolbox”, and add the GeoPackage Toolbox from the folder from step number 5.
+
+NOTE: Please confirm the Raster To GeoPackage WGS84 Script Location inside the GeoPackage Toolbox before running.
+
 
 #####To Create a Raster OGC GeoPackage in ArcGIS 
 1. In ArcToolBox open the GeoPackage Toolbox and create a new empty OGC GeoPackage using the Create SQLite Database GP tool. Make sure to select "GEOPACKAGE" as the spatial type.
