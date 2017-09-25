@@ -8,8 +8,8 @@
 __author__ = 'Robin Princeley'
 __copyright__ = "Copyright 2015, Esri"
 __license__ = "ASL 2.0"
-__version__ = "1.0"
-
+__version__ = "1.1"
+__credits__ = ["Augustus Francis"]
 # $Id$
 
 import os
