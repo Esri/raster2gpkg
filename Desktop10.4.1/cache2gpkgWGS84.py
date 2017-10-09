@@ -216,14 +216,6 @@ class Cache:
 
         print("self.max_x = {0}".format(self.max_x))
         print("self.max_y = {0}".format(self.max_y))
-
-        if self.max_y > self.min_y:
-            tmp = self.min_y
-            self.min_y = self.max_y
-            self.max_y = tmp
-        
-        print("self.max_x = {0}".format(self.max_x))
-        print("self.max_y = {0}".format(self.max_y))
     
         if self.wkt is None or self.min_x is None or self.min_y is None or self.max_x is None or self.max_y is None:
             return False
@@ -248,11 +240,11 @@ class Cache:
                 stopX = prev.stopX * 2
                 stopY = prev.stopY * 2
             self.level_infos.append(self.level_info(startX=startX, startY=startY, stopX=stopX, stopY=stopY,
-                                                    matrix_width=self.geodetic.MatrixDim(level), 
-                                                    matrix_height=self.geodetic.MatrixDim(level),
+                                                    matrix_width=self.geodetic.MatrixDim(level+1), 
+                                                    matrix_height=self.geodetic.MatrixDim(level+1),
                                                     zoom_level=level,
-                                                    pixel_x_size=self.geodetic.Resolution(level),
-                                                    pixel_y_size=self.geodetic.Resolution(level),
+                                                    pixel_x_size=self.geodetic.Resolution(level+1),
+                                                    pixel_y_size=self.geodetic.Resolution(level+1),
                                                     offset_x=0, offset_y=0))
             print("Tile(s)[{0}]: {1}, {2}, {3}, {4}".format(level, startX, startY, stopX-1, stopY-1))
         return True
@@ -279,7 +271,7 @@ class Cache:
         stopX = int(cols[-1][1:-4], 16)
         startY = int(rows[0][1:], 16)
         stopY = int(rows[-1][1:], 16)
-        return startX, startY, stopX, stopY
+        return startX, startY, stopX + 1, stopY + 1
 
     def getTileStartStopLL(self, min_x, min_y, max_x, max_y, level):
         if level not in self.levels:

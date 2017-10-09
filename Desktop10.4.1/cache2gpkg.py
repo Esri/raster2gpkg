@@ -524,6 +524,12 @@ class GeoPackage:
         if not table_name[0].isalpha():
             table_name = TILES_TABLE_PREFIX + table_name
         #table_name = table_name.lower()
+
+        if self.cache.matrix_max_y < self.cache.matrix_min_y:
+			tmp = self.cache.matrix_min_y
+			self.cache.matrix_min_y = self.cache.matrix_max_y
+			self.cache.matrix_max_y = tmp
+
         if self.connection.execute("""SELECT * FROM gpkg_contents WHERE identifier=? OR table_name=?""",
                                    (identifier, table_name)).fetchone() is not None:
             print("An entry with identifier {0} and/or table_name {1} already exists in gpkg_contents.".format(identifier, table_name))

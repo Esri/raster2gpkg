@@ -212,9 +212,6 @@ class GeoPackage:
         if not table_name[0].isalpha():
             table_name = TILES_TABLE_PREFIX + table_name
 
-        geopackage_ds = gdal.Open(self.filename + "\\" + table_name)
-        geopackage_ds.SetMetadataItem("ZOOM_LEVEL_STRATEGY", "UPPER")
-
         ### Cleanup
         new_srs = None
         new_extent = None
