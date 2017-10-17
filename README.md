@@ -1,6 +1,6 @@
 #raster2gpkg
 
-This is a Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage.
+This is a Python based Geoprocessing tool that loads jpeg or png images to a GeoPackage. You should consider moving to ArcGIS 10.5 or Pro 1.2 where a GeoPackage image loading GP tool is part of the install. 
 
 ## Features
 
@@ -27,9 +27,9 @@ This is a Python based Geoprocessing tool that loads jpeg or png images to a Geo
 6. Start ArcGIS Desktop 10.4 and launch ArcToolBox.  Right-click inside ArcToolBox, select “Add Toolbox”, and add the GeoPackage Toolbox from the folder from step number 5. 
 
 #### ArcGIS 10.4.1
-1. Copy the contents of the Desktop python directory from the unzipped folder to C:\Python27\ArcGIS10.4\Lib\site-packages.
-2. Copy cache2gpkg.py and cache2gpkgWGS84.py to C:\Python27\ArcGIS10.4
-3. Copy *.dll to C:\Program Files (x86)\ArcGIS\Desktop10.4\bin (note: You may need administrator access).
+1. Hot fix QFE-1041-DT-363565 is required for these scripts to work correctly. Contact support for availability.
+2. Copy the contents of the Desktop python directory from the unzipped folder to C:\Python27\ArcGIS10.4\Lib\site-packages.
+3. Copy cache2gpkg.py and cache2gpkgWGS84.py to C:\Python27\ArcGIS10.4
 4. Copy gpkg_scheme.xml and gpkg_schemeWGS84.xml to C:\Program Files(x86)\ArcGIS\Desktop10.4\TilingSchemes (note: you may need administrator access)
 5. Copy the GeoPackageToolbox.tbx , raster2gpkg.py and raster2gpkgWGS84.py to a folder. A folder that will not get overwritten.
 6. Start ArcGIS Desktop 10.4.1 and launch ArcToolBox. Right-click inside ArcToolBox, select “Add Toolbox”, and add the GeoPackage Toolbox from the folder from step number 5.
